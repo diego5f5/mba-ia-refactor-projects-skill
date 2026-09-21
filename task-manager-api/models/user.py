@@ -1,6 +1,8 @@
 from database import db
-from datetime import datetime
-import hashlib
+import bcrypt
+
+from utils.helpers import utc_now
+
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -11,28 +13,24 @@ class User(db.Model):
     password = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(50), default='user')
     active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
     def to_dict(self):
+        """Representação pública do usuário. Nunca inclui a senha (corrige exposição encontrada na auditoria)."""
         return {
             'id': self.id,
             'name': self.name,
             'email': self.email,
-            'password': self.password,
             'role': self.role,
             'active': self.active,
             'created_at': str(self.created_at)
         }
 
     def set_password(self, pwd):
-
-        self.password = hashlib.md5(pwd.encode()).hexdigest()
+        self.password = bcrypt.hashpw(pwd.encode(), bcrypt.gensalt()).decode()
 
     def check_password(self, pwd):
-        return self.password == hashlib.md5(pwd.encode()).hexdigest()
+        return bcrypt.checkpw(pwd.encode(), self.password.encode())
 
     def is_admin(self):
-        if self.role == 'admin':
-            return True
-        else:
-            return False
+        return self.role == 'admin'
