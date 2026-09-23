@@ -29,9 +29,10 @@ Por que isso importa: um e-commerce lidando com dados de cliente e pagamento nã
 - **CRITICAL: número de cartão de crédito logado junto da chave do gateway de pagamento**, na mesma linha de `console.log`. Isso é dado de cartão (PCI) e segredo de produção vazando para qualquer sistema de coleta de log.
 - **HIGH: callback hell no checkout.** Cinco níveis de callback aninhado pra uma sequência que é fundamentalmente sequencial, dificultando tratar erro de forma consistente.
 - **MEDIUM: N+1 no relatório financeiro administrativo**, buscando aluno e pagamento dentro de um loop de matrículas dentro de um loop de cursos.
+- **MEDIUM: validação de entrada fraca no checkout.** O endpoint só conferia se os campos existiam e decidia se o pagamento era aprovado checando apenas se o cartão começava com `"4"` (`cc.startsWith("4")`), sem validar formato de e-mail nem tamanho/formato real do cartão.
 - **LOW: nomenclatura ruim** (`u`, `e`, `p`, `cid`, `cc` para usuário, e-mail, senha, id de curso e cartão).
 
-Por que isso importa: é um fluxo de pagamento de verdade (mesmo que de brinquedo). Vazar cartão em log e "criptografar" senha com um algoritmo inventado são falhas de segurança sérias, não só estilo de código.
+Por que isso importa: é um fluxo de pagamento de verdade (mesmo que de brinquedo). Vazar cartão em log e "criptografar" senha com um algoritmo inventado são falhas de segurança sérias, não só estilo de código. Já o N+1 e a validação fraca do checkout são menos graves, mas afetam a confiabilidade dos dados (pagamento aprovado sem validação real) e a performance conforme a base de cursos/matrículas cresce.
 
 ### Projeto 3: task-manager-api (Python/Flask, já com alguma separação em camadas)
 
@@ -39,9 +40,10 @@ Por que isso importa: é um fluxo de pagamento de verdade (mesmo que de brinqued
 - **CRITICAL: login devolvendo um "token" previsível.** `'fake-jwt-token-' + str(user.id)`: não é um JWT, não é assinado, não expira, e dá pra "logar" como qualquer usuário só sabendo o ID dele.
 - **HIGH: regra de negócio duplicada em vez de reaproveitar o model.** O cálculo de "task atrasada" estava reimplementado manualmente em 4 arquivos diferentes, apesar do model `Task` já ter um método `is_overdue()` pronto, que nunca era chamado.
 - **MEDIUM: N+1 nas rotas de listagem e no relatório**, buscando usuário/categoria por task dentro de loop.
+- **MEDIUM: tratamento de erro genérico e disperso.** Doze blocos `except:` (sem tipo de exceção, sem log) estavam espalhados pelas três rotas, cada um formatando a resposta de erro de um jeito diferente, engolindo qualquer exceção inesperada sem registro.
 - **LOW: imports não usados e um módulo `utils/helpers.py` inteiro com funções** (`validate_email`, `calculate_percentage`, `format_date`) que existiam mas nunca eram chamadas. A validação de e-mail era reimplementada do zero em outro arquivo.
 
-Por que isso importa: esse projeto é o mais enganoso dos três porque já *parece* organizado (tem pasta `models/`, `routes/`, `services/`). Mas a organização de pastas sozinha não impede vazamento de senha ou autenticação falsa. Foi o projeto que mais me fez prestar atenção em auditar *conteúdo*, não só estrutura de diretório.
+Por que isso importa: esse projeto é o mais enganoso dos três porque já *parece* organizado (tem pasta `models/`, `routes/`, `services/`). Mas a organização de pastas sozinha não impede vazamento de senha ou autenticação falsa. O N+1 e o tratamento de erro genérico são mais sutis, porém mostram que ter camadas separadas não é o mesmo que usar essas camadas direito: os `except:` sem log escondem erro real de produção, e o N+1 degrada conforme cresce o número de tasks/usuários. Foi o projeto que mais me fez prestar atenção em auditar *conteúdo*, não só estrutura de diretório.
 
 ---
 
