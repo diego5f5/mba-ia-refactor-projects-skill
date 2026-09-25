@@ -10,11 +10,13 @@ from utils.helpers import utc_now, validate_email
 
 
 def list_users():
-    users = User.query.all()
+    counts = dict(
+        db.session.query(Task.user_id, db.func.count(Task.id)).group_by(Task.user_id).all()
+    )
     result = []
-    for u in users:
+    for u in User.query.all():
         data = u.to_dict()
-        data['task_count'] = len(u.tasks)
+        data['task_count'] = counts.get(u.id, 0)
         result.append(data)
     return result, None, 200
 

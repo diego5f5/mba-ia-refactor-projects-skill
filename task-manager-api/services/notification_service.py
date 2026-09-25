@@ -1,7 +1,10 @@
+import logging
 import smtplib
 
 from config.settings import Config
 from utils.helpers import utc_now
+
+logger = logging.getLogger("notifications")
 
 
 class NotificationService:
@@ -13,17 +16,18 @@ class NotificationService:
         self.email_password = Config.SMTP_PASSWORD
 
     def send_email(self, to, subject, body):
+        if not self.email_user or not self.email_password:
+            logger.info("SMTP não configurado, e-mail para %s não enviado: %s", to, subject)
+            return False
         try:
-            server = smtplib.SMTP(self.email_host, self.email_port)
-            server.starttls()
-            server.login(self.email_user, self.email_password)
-            message = f"Subject: {subject}\n\n{body}"
-            server.sendmail(self.email_user, to, message)
-            server.quit()
-            print(f"Email enviado para {to}")
+            with smtplib.SMTP(self.email_host, self.email_port, timeout=10) as server:
+                server.starttls()
+                server.login(self.email_user, self.email_password)
+                server.sendmail(self.email_user, to, f"Subject: {subject}\n\n{body}")
+            logger.info("E-mail enviado para %s", to)
             return True
-        except Exception as e:
-            print(f"Erro ao enviar email: {str(e)}")
+        except (smtplib.SMTPException, OSError):
+            logger.exception("Erro ao enviar e-mail para %s", to)
             return False
 
     def notify_task_assigned(self, user, task):

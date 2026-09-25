@@ -1,10 +1,17 @@
 from datetime import datetime
 
+from flask import current_app
+
 from database import db
 from models.category import Category
 from models.task import Task
 from models.user import User
 from utils.helpers import utc_now
+
+
+def _notify_assignment(task):
+    if task.user:
+        current_app.extensions['notification_service'].notify_task_assigned(task.user, task)
 
 
 def list_tasks():
@@ -75,6 +82,7 @@ def create_task(data):
 
     db.session.add(task)
     db.session.commit()
+    _notify_assignment(task)
     return task.to_dict(), None, 201
 
 
@@ -82,6 +90,7 @@ def update_task(task_id, data):
     task = Task.query.get(task_id)
     if not task:
         return None, 'Task não encontrada', 404
+    previous_user_id = task.user_id
 
     if 'title' in data:
         if len(data['title']) < 3:
@@ -128,6 +137,8 @@ def update_task(task_id, data):
 
     task.updated_at = utc_now()
     db.session.commit()
+    if task.user_id and task.user_id != previous_user_id:
+        _notify_assignment(task)
     return task.to_dict(), None, 200
 
 
