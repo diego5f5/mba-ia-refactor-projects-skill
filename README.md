@@ -90,6 +90,7 @@ A prova concreta disso está em `ecommerce-api-legacy/.claude/skills/refactor-ar
 
 - **Projeto 3 já tinha camadas, mas a arquitetura ainda estava errada.** O maior desafio de design foi deixar isso explícito no `SKILL.md`: "não recrie do zero, reorganize e corrija o que já existe, movendo o que estiver fora do lugar e criando apenas as camadas que faltam". Na prática, isso significou que a Fase 3 do projeto 3 criou só a camada de `controllers/` (que realmente não existia) e corrigiu `models/`, `routes/`, `services/` e `utils/` no lugar, em vez de reescrever tudo.
 - **Ambiente sem virtualenv por projeto.** Como testei os três projetos Python na mesma máquina sem isolar cada um em um venv separado, instalar as dependências do projeto 3 acabou rebaixando o Flask instalado globalmente de 3.1.1 para 3.0.0 (a versão que o projeto 3 pede). Revalidei o projeto 1 depois disso pra garantir que continuava funcionando. Funcionou normalmente, mas deixo registrado aqui porque é o tipo de detalhe que teria sido evitado com um venv por projeto (recomendo isso na seção "Como Executar" abaixo).
+- **Recomendação aplicada pela metade.** Na primeira execução, a Fase 3 do ecommerce-api-legacy fez a limpeza de matrículas e pagamentos ao excluir um usuário, mas não colocou autenticação de administrador nas rotas, que era a outra metade da mesma recomendação. Revisando os outros projetos achei o mesmo padrão em mais lugares (o `/admin/reset-db` do projeto 1 tinha sido removido em vez de protegido, e o `NotificationService` do projeto 3 continuava desconectado). Corrigi a causa na skill: a Fase 3 agora exige aplicar cada recomendação por inteiro, fazer uma conferência finding por finding antes de fechar e testar toda rota protegida com e sem credencial. O playbook também ganhou a implementação concreta do `requireAdmin` nas duas stacks e um padrão de exclusão em cascata dentro de transação. Depois disso rodei a skill de novo no ecommerce-api-legacy.
 - **Rodar as três fases de forma consistente nos três projetos.** Em vez de abrir um terminal separado pra cada `claude "/refactor-arch"`, segui o `SKILL.md` e os arquivos de referência dentro do mesmo fluxo de trabalho pros três projetos. O resultado é o mesmo, já que o conteúdo executado (as instruções da skill) é idêntico em qualquer um dos dois jeitos. Os passos pra quem quiser reproduzir digitando o comando estão na seção D.
 
 ---
@@ -106,6 +107,8 @@ A prova concreta disso está em `ecommerce-api-legacy/.claude/skills/refactor-ar
 
 Os relatórios completos, com arquivo e linha exata de cada achado, estão em `reports/audit-project-1.md`, `reports/audit-project-2.md` e `reports/audit-project-3.md`. Fiz uma segunda passada em cada um depois da primeira auditoria e encontrei mais alguns pontos que tinham passado batido (validação de itens de pedido no projeto 1, checkout permitindo matrícula duplicada no projeto 2, uso de `datetime.utcnow()` já depreciado no projeto 3), então os totais acima já refletem essa revisão.
 
+No ecommerce-api-legacy a skill rodou uma segunda vez sobre o código já refatorado, depois do ajuste na Fase 3. Esse rerun está em `reports/audit-project-2-rerun.md` e encontrou 6 pontos (1 CRITICAL, 1 HIGH, 2 MEDIUM, 2 LOW): rotas administrativas sem autenticação, exclusão em cascata fora de transação, validação de e-mail/cartão ainda fraca no checkout, Express 4 com a 5.x já estável, `audit_logs` sem rota de leitura e um cache em memória que ninguém lia. Todos foram aplicados na Fase 3 desse rerun.
+
 ### Comparação antes/depois da estrutura
 
 **Projeto 1: code-smells-project**
@@ -117,10 +120,10 @@ code-smells-project/           code-smells-project/
 ├── controllers.py             ├── src/
 ├── models.py                  │   ├── config/ (settings.py, business_rules.py, database.py)
 ├── database.py                │   ├── models/ (produto, usuario, pedido)
-└── requirements.txt           │   ├── controllers/ (produto, usuario, pedido)
+└── requirements.txt           │   ├── controllers/ (produto, usuario, pedido, admin)
                                 │   ├── views/ (routes.py)
                                 │   ├── services/ (notification_service.py)
-                                │   └── middlewares/ (error_handler.py)
+                                │   └── middlewares/ (error_handler.py, auth.py)
                                 └── .env.example
 ```
 
@@ -135,8 +138,8 @@ ecommerce-api-legacy/          ecommerce-api-legacy/
     └── utils.js                   ├── models/ (user, course, enrollment, payment, auditLog)
                                     ├── controllers/ (checkout, report, user)
                                     ├── routes/ (index.js)
-                                    ├── services/ (payment, cache, logger)
-                                    └── middlewares/ (errorHandler.js)
+                                    ├── services/ (payment, logger)
+                                    └── middlewares/ (errorHandler.js, requireAdmin.js)
 ```
 
 **Projeto 3: task-manager-api**
@@ -150,7 +153,7 @@ task-manager-api/              task-manager-api/
 ├── routes/                    ├── controllers/     (novo, camada que faltava)
 ├── services/                  ├── models/          (corrigido: senha, bcrypt, métodos reaproveitados)
 └── utils/                     ├── routes/          (emagrecido, delega ao controller)
-                                ├── services/        (corrigido: credenciais via config)
+                                ├── services/        (corrigido: credenciais via config, conectado ao fluxo de tasks)
                                 ├── middlewares/     (novo)
                                 └── utils/           (enxugado, só o que é usado de fato)
 ```
@@ -159,7 +162,7 @@ task-manager-api/              task-manager-api/
 
 **Fase 1: Análise**
 - [x] Linguagem detectada corretamente (Python nos projetos 1 e 3, JavaScript/Node no projeto 2)
-- [x] Framework detectado corretamente (Flask 3.1.1, Express 4.18.2, Flask 3.0.0 + SQLAlchemy)
+- [x] Framework detectado corretamente (Flask 3.1.1, Express 4.18.2 (atualizado para 5.x no rerun), Flask 3.0.0 + SQLAlchemy)
 - [x] Domínio da aplicação descrito corretamente (e-commerce, LMS com checkout, task manager)
 - [x] Número de arquivos analisados condiz com a realidade (4, 3 e 15 arquivos respectivamente)
 
@@ -180,7 +183,7 @@ task-manager-api/              task-manager-api/
 - [x] Error handling centralizado nos 3 projetos
 - [x] Entry point claro (composition root) nos 3 projetos
 - [x] Aplicação inicia sem erros nos 3 projetos
-- [x] Endpoints originais respondem corretamente nos 3 projetos
+- [x] Endpoints originais respondem corretamente nos 3 projetos (as rotas administrativas agora exigem `Authorization: Bearer <ADMIN_TOKEN>`)
 
 ### Logs de validação capturados durante a Fase 3
 
@@ -196,7 +199,14 @@ $ curl -s -X POST http://localhost:5000/pedidos -d '{"usuario_id":2,"itens":[{"p
 {"dados":{"pedido_id":1,"total":6179.79},"mensagem":"Pedido criado com sucesso","sucesso":true}
 
 $ curl -s -X POST http://localhost:5000/admin/reset-db
-# 404: endpoint removido de propósito, sem uso legítimo e sem infraestrutura de auth pra protegê-lo
+{"erro":"Não autorizado","sucesso":false}   # 401 sem token
+
+$ curl -s -X POST http://localhost:5000/admin/reset-db -H "Authorization: Bearer $ADMIN_TOKEN"
+{"erro":"Disponível apenas em ambiente de desenvolvimento","sucesso":false}   # 403 com FLASK_DEBUG=false
+# com FLASK_DEBUG=true e o token certo: {"mensagem":"Banco de dados resetado","sucesso":true}
+
+$ curl -s -X POST http://localhost:5000/admin/query
+# 404: removido, a recomendação era não expor execução de SQL livre
 ```
 
 **Projeto 2 (Node/Express), depois de subir com `npm start`:**
@@ -205,11 +215,17 @@ $ curl -s -X POST http://localhost:3000/api/checkout -d '{"usr":"Guilherme","eml
 {"msg":"Sucesso","enrollment_id":2}
 
 $ curl -s -X DELETE http://localhost:3000/api/users/1
+{"error":"Não autorizado"}   # 401 sem token
+
+$ curl -s -X DELETE http://localhost:3000/api/users/1 -H "Authorization: Bearer $ADMIN_TOKEN"
 {"message":"Usuário e registros relacionados removidos com sucesso"}
 
-$ curl -s http://localhost:3000/api/admin/financial-report
+$ curl -s http://localhost:3000/api/admin/financial-report -H "Authorization: Bearer $ADMIN_TOKEN"
 [{"course":"Clean Architecture","revenue":0,"students":[]},{"course":"Docker","revenue":497,"students":[{"student":"Guilherme","paid":497}]}]
 # matrícula/pagamento do usuário deletado não ficaram mais órfãos no banco
+
+$ curl -s http://localhost:3000/api/admin/audit-logs -H "Authorization: Bearer $ADMIN_TOKEN"
+[{"id":1,"action":"Checkout curso 2 por 2","created_at":"..."}]
 ```
 
 **Projeto 3 (Flask + SQLAlchemy), depois de `python seed.py && python app.py`:**
@@ -276,11 +292,16 @@ curl http://localhost:5000/produtos
 ```bash
 cd ecommerce-api-legacy
 npm install
+cp .env.example .env   # e troque ADMIN_TOKEN por um valor seu
 npm start
 # em outro terminal:
 curl -X POST http://localhost:3000/api/checkout -H "Content-Type: application/json" \
   -d '{"usr":"Teste","eml":"teste@teste.com","pwd":"123456","c_id":1,"card":"4111111111111111"}'
+curl http://localhost:3000/api/admin/financial-report                                    # 401
+curl http://localhost:3000/api/admin/financial-report -H "Authorization: Bearer <ADMIN_TOKEN>"  # 200
 ```
+
+Sem `ADMIN_TOKEN` configurado, as rotas administrativas ficam bloqueadas (a checagem falha fechada). O mesmo vale pro `/admin/reset-db` do projeto 1, que além do token só funciona com `FLASK_DEBUG=true`.
 
 **Projeto 3:**
 ```bash
