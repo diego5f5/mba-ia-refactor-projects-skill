@@ -84,14 +84,77 @@ def executar_query():
     cursor.execute(query)  # executa qualquer SQL enviado pelo cliente
 ```
 
-**Depois:** remover o endpoint de execução de SQL arbitrário (não existe caso de uso legítimo de API pública para isso) e, para o endpoint de reset, restringir a ambiente de desenvolvimento/teste com autenticação de administrador explícita:
+**Depois:** remover o endpoint de execução de SQL arbitrário (não existe caso de uso legítimo de API pública para isso). Os demais endpoints administrativos (reset, exclusão de usuário, relatórios financeiros, logs de auditoria) **continuam existindo, mas protegidos**: o `require_admin` precisa ser implementado de verdade, não só citado.
+
+Se o projeto já tem um sistema de autenticação (JWT, sessão), reaproveite e cheque o papel de admin. Se não tem nenhum, crie o mínimo: um token de administrador vindo da config (`ADMIN_TOKEN`), enviado no header `Authorization: Bearer <token>`, comparado em tempo constante e com **falha fechada** (sem token configurado, a rota fica bloqueada).
+
+Python/Flask:
 ```python
-@app.route("/admin/reset-db", methods=["POST"])
-@require_admin  # middleware de autenticação, nunca exposto sem auth
+# middlewares/auth.py
+import hmac
+from functools import wraps
+from flask import current_app, jsonify, request
+
+def require_admin(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        expected = current_app.config.get("ADMIN_TOKEN", "")
+        provided = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+        if not expected or not hmac.compare_digest(provided, expected):
+            return jsonify({"erro": "Não autorizado"}), 401
+        return view(*args, **kwargs)
+    return wrapper
+
+# rota de reset: protegida e restrita a desenvolvimento
+@require_admin
 def reset_database():
     if not current_app.config["DEBUG"]:
-        abort(403)
+        return jsonify({"erro": "Disponível apenas em desenvolvimento"}), 403
     ...
+```
+
+Node/Express:
+```js
+// middlewares/requireAdmin.js
+const crypto = require('crypto');
+const settings = require('../config/settings');
+
+function requireAdmin(req, res, next) {
+    const expected = Buffer.from(settings.adminToken || '');
+    const provided = Buffer.from((req.get('Authorization') || '').replace(/^Bearer\s+/i, ''));
+    if (!expected.length || provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
+        return res.status(401).json({ error: 'Não autorizado' });
+    }
+    next();
+}
+
+// routes: o middleware entra antes do handler
+router.delete('/users/:id', requireAdmin, userController.deleteUser);
+router.get('/admin/financial-report', requireAdmin, reportController.financialReport);
+```
+
+---
+
+## 4b. Exclusão que deixa registros órfãos → Cascata dentro de transação
+
+**Antes:**
+```js
+db.run("DELETE FROM users WHERE id = ?", [id]); // matrículas e pagamentos ficam órfãos
+```
+
+**Depois:** apagar (ou anonimizar) os dependentes e o registro principal numa única transação, para nunca sobrar estado parcial se uma das etapas falhar:
+```js
+await db.transaction(async () => {
+    const enrollments = await enrollmentModel.findByUserId(id);
+    await paymentModel.deleteByEnrollmentIds(enrollments.map((e) => e.id));
+    await enrollmentModel.deleteByUserId(id);
+    await userModel.delete(id);
+});
+```
+```python
+with db.session.begin():
+    Task.query.filter_by(user_id=user_id).delete()
+    db.session.delete(user)
 ```
 
 ---

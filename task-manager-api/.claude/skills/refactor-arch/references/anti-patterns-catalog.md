@@ -19,7 +19,7 @@ Use este catálogo na Fase 2 (Auditoria). Para cada item: o que é, como detecta
 **Por quê é crítico:** permite leitura, alteração ou exclusão arbitrária de dados; em APIs que expõem um endpoint de query livre (ex.: `/admin/query` executando SQL enviado no corpo da requisição) o risco é ainda mais direto.
 
 ### 4. Endpoint de administração sem controle de acesso
-**Detecção:** rotas que resetam o banco, deletam dados em massa ou executam comandos arbitrários (`/admin/reset-db`, `/admin/query`) sem nenhuma checagem de autenticação/autorização antes de executar a ação.
+**Detecção:** rotas que resetam o banco, deletam dados em massa, excluem usuários, expõem relatórios financeiros/logs de auditoria ou executam comandos arbitrários (`/admin/reset-db`, `/admin/query`, `DELETE /users/:id`, `/admin/financial-report`) sem nenhuma checagem de autenticação/autorização antes de executar a ação. Sinal objetivo: na definição da rota não aparece nenhum middleware/decorator de auth antes do handler (ex.: `router.delete('/users/:id', handler)` direto, ou função Flask sem `@require_admin`).
 **Por quê é crítico:** qualquer requisição não autenticada pode destruir dados de produção.
 
 ---
