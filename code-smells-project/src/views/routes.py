@@ -1,14 +1,22 @@
 from flask import Blueprint, jsonify
 
+from src.controllers.admin_controller import AdminController
 from src.controllers.pedido_controller import PedidoController
 from src.controllers.produto_controller import ProdutoController
 from src.controllers.usuario_controller import UsuarioController
+from src.middlewares.auth import require_admin
 
 
 def register_routes(app, db):
     produto_controller = ProdutoController(db)
     usuario_controller = UsuarioController(db)
     pedido_controller = PedidoController(db)
+    admin_controller = AdminController(db)
+
+    admin_bp = Blueprint("admin", __name__)
+    admin_bp.add_url_rule(
+        "/admin/reset-db", "reset_db", require_admin(admin_controller.reset_database), methods=["POST"]
+    )
 
     produtos_bp = Blueprint("produtos", __name__)
     produtos_bp.add_url_rule("/produtos", "listar", produto_controller.listar, methods=["GET"])
@@ -98,3 +106,4 @@ def register_routes(app, db):
     app.register_blueprint(pedidos_bp)
     app.register_blueprint(relatorios_bp)
     app.register_blueprint(sistema_bp)
+    app.register_blueprint(admin_bp)

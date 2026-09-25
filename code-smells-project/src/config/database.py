@@ -20,6 +20,12 @@ class Database:
             self._seed_if_empty()
         return self._connection
 
+    def reset(self):
+        conn = self.get_connection()
+        with conn:
+            for tabela in ("itens_pedido", "pedidos", "produtos", "usuarios"):
+                conn.execute(f"DELETE FROM {tabela}")
+
     def _create_tables(self):
         cursor = self._connection.cursor()
         cursor.execute(
