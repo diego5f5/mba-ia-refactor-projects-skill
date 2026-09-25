@@ -4,7 +4,9 @@ const EnrollmentModel = require('../models/enrollmentModel');
 const PaymentModel = require('../models/paymentModel');
 const AuditLogModel = require('../models/auditLogModel');
 const paymentService = require('../services/paymentService');
-const cacheService = require('../services/cacheService');
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const CARD_REGEX = /^\d{13,19}$/;
 
 class CheckoutController {
     constructor(db) {
@@ -21,6 +23,12 @@ class CheckoutController {
 
             if (!userName || !email || !courseId || !cardNumber) {
                 return res.status(400).json({ error: 'Dados obrigatórios ausentes' });
+            }
+            if (!EMAIL_REGEX.test(email)) {
+                return res.status(400).json({ error: 'E-mail inválido' });
+            }
+            if (!CARD_REGEX.test(String(cardNumber))) {
+                return res.status(400).json({ error: 'Número de cartão inválido' });
             }
 
             const course = await this.courseModel.findActiveById(courseId);
@@ -43,8 +51,6 @@ class CheckoutController {
             const enrollmentId = await this.enrollmentModel.create(userId, courseId);
             await this.paymentModel.create(enrollmentId, course.price, payment.status);
             await this.auditLogModel.log(`Checkout curso ${courseId} por ${userId}`);
-
-            cacheService.set(`last_checkout_${userId}`, course.title);
 
             return res.status(200).json({ msg: 'Sucesso', enrollment_id: enrollmentId });
         } catch (err) {

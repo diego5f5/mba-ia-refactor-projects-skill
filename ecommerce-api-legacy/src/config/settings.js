@@ -9,6 +9,7 @@ module.exports = {
     dbPass: process.env.DB_PASS || '',
     paymentGatewayKey: process.env.PAYMENT_GATEWAY_KEY || '',
     smtpUser: process.env.SMTP_USER || '',
+    adminToken: process.env.ADMIN_TOKEN || '',
     port: process.env.PORT || 3000,
     dbPath: process.env.DB_PATH || ':memory:',
 };

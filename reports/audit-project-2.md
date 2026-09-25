@@ -106,7 +106,7 @@ Recommendation: Substituir por um logger configurável (ex.: `pino`, `winston`) 
 File: src/AppManager.js:57 (grava em `audit_logs`); nenhuma rota do projeto faz `SELECT` nessa tabela
 Description: Todo checkout grava uma linha em `audit_logs`, mas não existe nenhum endpoint que exponha ou consulte esse histórico. É um recurso write-only.
 Impact: O esforço de manter a trilha de auditoria não gera valor nenhum hoje, porque ninguém consegue lê-la pela API.
-Recommendation: Adicionar um endpoint de leitura (protegido por autenticação) ou remover a gravação se o recurso não fizer parte do escopo. Mantive como limitação documentada nesta entrega, no mesmo espírito da decisão tomada para o `NotificationService` do projeto 3.
+Recommendation: Adicionar um endpoint de leitura protegido por autenticação de administrador, ou remover a gravação se o recurso não fizer parte do escopo.
 
 ================================
 Total: 16 findings

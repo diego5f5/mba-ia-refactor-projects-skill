@@ -35,6 +35,18 @@ class Database {
         });
     }
 
+    async transaction(work) {
+        await this.run('BEGIN');
+        try {
+            const result = await work();
+            await this.run('COMMIT');
+            return result;
+        } catch (err) {
+            await this.run('ROLLBACK');
+            throw err;
+        }
+    }
+
     async init() {
         await this.run('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT, pass TEXT)');
         await this.run('CREATE TABLE IF NOT EXISTS courses (id INTEGER PRIMARY KEY, title TEXT, price REAL, active INTEGER)');

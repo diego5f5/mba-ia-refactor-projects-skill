@@ -1,7 +1,18 @@
+const AuditLogModel = require('../models/auditLogModel');
+
 class ReportController {
     constructor(db) {
         this.db = db;
+        this.auditLogModel = new AuditLogModel(db);
     }
+
+    auditLogs = async (req, res, next) => {
+        try {
+            return res.json(await this.auditLogModel.findAll());
+        } catch (err) {
+            next(err);
+        }
+    };
 
     financialReport = async (req, res, next) => {
         try {
